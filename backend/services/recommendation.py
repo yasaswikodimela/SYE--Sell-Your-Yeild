@@ -1,12 +1,26 @@
-def calculate_recommendation(produce, buyers):
+def calculate_recommendation(produce, buyers, market_prices):
     quantity = produce["quantity_kg"]
     shelf_life = produce["shelf_life_days"]
+
+    # Calculate average mandi modal price
+    market_price = 0
+
+    if market_prices:
+        valid_prices = [
+            float(row["Modal_Price"])
+            for row in market_prices
+            if row.get("Modal_Price") is not None
+        ]
+
+        if valid_prices:
+            market_price = sum(valid_prices) / len(valid_prices) / 100
 
     if not buyers:
         return {
             "strategy": "no_buyers",
             "expected_net_value": 0,
             "allocations": [],
+            "remaining_quantity_kg": quantity,
             "reasons": ["No suitable buyers found"]
         }
 
@@ -18,25 +32,54 @@ def calculate_recommendation(produce, buyers):
     else:
         spoilage_rate = 0.02
 
-    # Calculate value per kg for each buyer
+    # Calculate value for each suitable buyer
     buyer_options = []
 
     for buyer in buyers:
+
+        # Only consider buyers interested in the farmer's crop
+        if buyer["crop"].lower() != produce["crop"].lower():
+            continue
+
         value_per_kg = (
             buyer["price_per_kg"] * (1 - spoilage_rate)
         )
+
+        # Compare buyer price with mandi market price
+        if market_price > 0:
+            market_difference = (
+                buyer["price_per_kg"] - market_price
+            )
+        else:
+            market_difference = 0
 
         buyer_options.append({
             "buyer": buyer["name"],
             "price_per_kg": buyer["price_per_kg"],
             "capacity_kg": buyer["capacity_kg"],
             "transport_cost": buyer.get("transport_cost", 0),
-            "value_per_kg": value_per_kg
+            "value_per_kg": value_per_kg,
+            "market_difference": market_difference
         })
 
-    # Highest effective value first
+    # No buyer available for this crop
+    if not buyer_options:
+        return {
+            "strategy": "no_buyers",
+            "expected_net_value": 0,
+            "allocations": [],
+            "remaining_quantity_kg": quantity,
+            "reasons": [
+                "No suitable buyers found for this crop"
+            ]
+        }
+
+    # Rank buyers using effective value and market comparison
     buyer_options.sort(
-        key=lambda x: x["value_per_kg"],
+        key=lambda x: (
+            x["value_per_kg"]
+            + (x["market_difference"] * 0.5)
+        ),
         reverse=True
     )
 
@@ -46,6 +89,7 @@ def calculate_recommendation(produce, buyers):
     total_net_value = 0
 
     for buyer in buyer_options:
+
         if remaining_quantity <= 0:
             break
 
@@ -55,11 +99,14 @@ def calculate_recommendation(produce, buyers):
         )
 
         revenue = (
-            allocated_quantity *
-            buyer["price_per_kg"]
+            allocated_quantity
+            * buyer["price_per_kg"]
         )
 
-        spoilage_loss = revenue * spoilage_rate
+        spoilage_loss = (
+            revenue
+            * spoilage_rate
+        )
 
         net_value = (
             revenue
@@ -80,14 +127,17 @@ def calculate_recommendation(produce, buyers):
         total_net_value += net_value
         remaining_quantity -= allocated_quantity
 
-    # Decide strategy
-    if len(allocations) == 1:
+    # Decide selling strategy
+    if len(allocations) == 0:
+        strategy = "no_buyers"
+    elif len(allocations) == 1:
         strategy = "single_buyer"
     else:
         strategy = "split"
 
+    # Explanation shown to farmer
     reasons = [
-        "Highest effective value considered",
+        "Buyer price compared with market price",
         "Transportation cost considered",
         "Spoilage risk considered",
         "Buyer capacity considered"
@@ -106,6 +156,7 @@ def calculate_recommendation(produce, buyers):
     return {
         "strategy": strategy,
         "expected_net_value": round(total_net_value, 2),
+        "market_price_per_kg": round(market_price, 2),
         "allocations": allocations,
         "remaining_quantity_kg": remaining_quantity,
         "reasons": reasons
