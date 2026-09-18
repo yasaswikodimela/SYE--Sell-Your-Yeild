@@ -1,3 +1,4 @@
+from database import supabase
 from fastapi import FastAPI
 from pydantic import BaseModel
 
@@ -21,28 +22,26 @@ def home():
 
 @app.post("/recommendation")
 def recommendation(produce: ProduceRequest):
-    buyers = [
-        {
-            "name": "FreshMart",
-            "price_per_kg": 30,
-            "capacity_kg": 600,
-            "transport_cost": 1200
-        },
-        {
-            "name": "Krishna Wholesale",
-            "price_per_kg": 27,
-            "capacity_kg": 500,
-            "transport_cost": 600
-        },
-        {
-            "name": "Local Market",
-            "price_per_kg": 25,
-            "capacity_kg": 1000,
-            "transport_cost": 300
-        }
-    ]
+    buyers_response = supabase.table("buyers").select("*").execute()
+    buyers = buyers_response.data
 
     return calculate_recommendation(
         produce.model_dump(),
         buyers
     )
+@app.get("/buyers")
+def get_buyers():
+    response = supabase.table("buyers").select("*").execute()
+    return response.data
+@app.get("/market-prices/{crop}")
+def get_market_prices(crop: str):
+    response = (
+        supabase
+        .table("market_prices")
+        .select("*")
+        .eq("Commodity", crop)
+        .limit(20)
+        .execute()
+    )
+
+    return response.data
