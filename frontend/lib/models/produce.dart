@@ -22,18 +22,20 @@ class Produce {
   });
 
   factory Produce.fromJson(Map<String, dynamic> json) {
-    return Produce(
-      id: json['id'] as String,
-      crop: json['crop'] as String,
-      variety: json['variety'] as String? ?? 'Standard',
-      quantityKg: (json['quantityKg'] as num).toDouble(),
-      qualityGrade: json['qualityGrade'] as String,
-      harvestDate: DateTime.parse(json['harvestDate'] as String),
-      shelfLifeDays: (json['shelfLifeDays'] as num).toInt(),
-      location: json['location'] as String,
-      notes: json['notes'] as String? ?? '',
-    );
-  }
+  return Produce(
+    id: json['id']?.toString() ?? '',
+    crop: json['crop']?.toString() ?? '',
+    variety: json['variety']?.toString() ?? 'Standard',
+    quantityKg: (json['quantity_kg'] as num?)?.toDouble() ?? 0.0,
+    qualityGrade: json['quality']?.toString() ?? 'Grade C',
+    harvestDate: json['harvest_date'] != null
+        ? DateTime.parse(json['harvest_date'].toString())
+        : DateTime.now(),
+    shelfLifeDays: (json['shelf_life_days'] as num?)?.toInt() ?? 0,
+    location: json['location']?.toString() ?? '',
+    notes: json['notes']?.toString() ?? '',
+  );
+}
 
   Map<String, dynamic> toJson() => {
         'id': id,

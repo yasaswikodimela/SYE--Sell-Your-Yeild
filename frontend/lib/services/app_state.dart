@@ -5,6 +5,7 @@ import '../models/market_price.dart';
 import '../models/order.dart';
 import '../models/produce.dart';
 import '../models/recommendation.dart';
+import 'api_service.dart';
 
 class AppState extends ChangeNotifier {
   static final AppState _instance = AppState._internal();
@@ -17,7 +18,10 @@ class AppState extends ChangeNotifier {
   bool isFarmerMode = true;
 
   // Farmer Profile
+  
+  
   FarmerProfile farmerProfile = const FarmerProfile(
+
     name: 'Ramesh Naidu',
     phone: '+91 94401 23456',
     village: 'Gannavaram',
@@ -27,8 +31,26 @@ class AppState extends ChangeNotifier {
     primaryCrops: ['Tomato', 'Chilli', 'Paddy', 'Cotton'],
     memberSince: 'January 2024',
     kisanId: 'AP-KRA-2024-8921',
+    
   );
+  String? farmerId;
+  Future<void> loadFarmerProduce() async {
+  if (farmerId == null) return;
 
+  try {
+    final data = await ApiService.getFarmerProduce(farmerId!);
+
+    if (data.isNotEmpty) {
+      final produceData = Map<String, dynamic>.from(data.first);
+
+      activeProduce = Produce.fromJson(produceData);
+      recalculateRecommendation();
+      notifyListeners();
+    }
+  } catch (e) {
+    print('Error loading farmer produce: $e');
+  }
+}
   // Active Harvest / Produce
   Produce activeProduce = Produce(
     id: 'prod_001',

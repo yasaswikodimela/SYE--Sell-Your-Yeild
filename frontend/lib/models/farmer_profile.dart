@@ -22,19 +22,24 @@ class FarmerProfile {
   });
 
   factory FarmerProfile.fromJson(Map<String, dynamic> json) {
-    return FarmerProfile(
-      name: json['name'] as String,
-      phone: json['phone'] as String,
-      village: json['village'] as String,
-      district: json['district'] as String,
-      state: json['state'] as String,
-      landSizeAcres: (json['landSizeAcres'] as num).toDouble(),
-      primaryCrops: List<String>.from(json['primaryCrops'] as List),
-      memberSince: json['memberSince'] as String? ?? 'March 2024',
-      kisanId: json['kisanId'] as String? ?? 'AP-KRA-2024-8921',
-    );
-  }
+  final location = json['location']?.toString() ?? '';
 
+  return FarmerProfile(
+    name: json['name']?.toString() ?? '',
+    phone: json['phone']?.toString() ?? '',
+    village: location,
+    district: location,
+    state: 'Andhra Pradesh',
+    landSizeAcres: (json['farm_size'] as num?)?.toDouble() ?? 0.0,
+    primaryCrops: (json['main_crops']?.toString() ?? '')
+        .split(',')
+        .map((crop) => crop.trim())
+        .where((crop) => crop.isNotEmpty)
+        .toList(),
+    memberSince: 'September 2026',
+    kisanId: json['id']?.toString() ?? '',
+  );
+}
   Map<String, dynamic> toJson() => {
         'name': name,
         'phone': phone,

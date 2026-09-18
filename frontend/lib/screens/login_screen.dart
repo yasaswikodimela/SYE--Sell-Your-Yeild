@@ -1,8 +1,10 @@
+import '../services/api_service.dart';
 import 'package:flutter/material.dart';
 import '../services/app_state.dart';
 import '../theme.dart';
 import 'buyer_dashboard_screen.dart';
 import 'dashboard_screen.dart';
+import '../models/farmer_profile.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -12,26 +14,70 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _phoneController = TextEditingController(text: '9440123456');
-  final _passwordController = TextEditingController(text: 'kisan123');
+  final _phoneController = TextEditingController();
+  final _passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _isBuyer = false;
   final _formKey = GlobalKey<FormState>();
 
-  void _handleLogin() {
-    if (_formKey.currentState?.validate() ?? false) {
+  Future<void> _handleLogin() async {
+  if (!(_formKey.currentState?.validate() ?? false)) {
+    return;
+  }
+
+  setState(() {});
+
+  try {
+    final phone = _phoneController.text.trim();
+    final password = _passwordController.text.trim();
+
+    final result = _isBuyer
+        ? await ApiService.buyerLogin(phone, password)
+        : await ApiService.farmerLogin(phone, password);
+
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      if (!_isBuyer) {
+          AppState().farmerId = result['farmer']['id']?.toString();
+          AppState().farmerProfile =
+          FarmerProfile.fromJson(result['farmer']);
+          await AppState().loadFarmerProduce();
+}
       AppState().isFarmerMode = !_isBuyer;
+
       if (_isBuyer) {
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const BuyerDashboardScreen()),
+          MaterialPageRoute(
+            builder: (_) => const BuyerDashboardScreen(),
+          ),
         );
       } else {
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const DashboardScreen()),
+          MaterialPageRoute(
+            builder: (_) => const DashboardScreen(),
+          ),
         );
       }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result['message'] ?? 'Invalid phone number or password',
+          ),
+        ),
+      );
     }
+  } catch (e) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Unable to connect to server: $e'),
+      ),
+    );
   }
+}
 
   @override
   void dispose() {
