@@ -7,6 +7,7 @@ def calculate_recommendation(produce, buyers):
             "strategy": "no_buyers",
             "expected_net_value": 0,
             "allocations": [],
+            "remaining_quantity_kg": quantity,
             "reasons": ["No suitable buyers found"]
         }
 
@@ -18,10 +19,38 @@ def calculate_recommendation(produce, buyers):
     else:
         spoilage_rate = 0.02
 
-    # Calculate value per kg for each buyer
+    # Quality ranking
+    # A = highest quality, C = lowest quality
+    quality_rank = {
+        "A": 3,
+        "B": 2,
+        "C": 1
+    }
+
+    farmer_quality = quality_rank.get(
+        produce["quality"].upper(),
+        0
+    )
+
+    # Find suitable buyers
     buyer_options = []
 
     for buyer in buyers:
+
+        # Skip buyers who do not buy this crop
+        if buyer.get("crop", "").lower() != produce["crop"].lower():
+            continue
+
+        # Check quality requirement
+        required_quality = quality_rank.get(
+            buyer.get("quality_required", "C").upper(),
+            1
+        )
+
+        # Skip buyer if farmer's quality is not sufficient
+        if farmer_quality < required_quality:
+            continue
+
         value_per_kg = (
             buyer["price_per_kg"] * (1 - spoilage_rate)
         )
@@ -31,8 +60,24 @@ def calculate_recommendation(produce, buyers):
             "price_per_kg": buyer["price_per_kg"],
             "capacity_kg": buyer["capacity_kg"],
             "transport_cost": buyer.get("transport_cost", 0),
+            "quality_required": buyer.get(
+                "quality_required",
+                "C"
+            ),
             "value_per_kg": value_per_kg
         })
+
+    # No suitable buyers
+    if not buyer_options:
+        return {
+            "strategy": "no_suitable_buyer",
+            "expected_net_value": 0,
+            "allocations": [],
+            "remaining_quantity_kg": quantity,
+            "reasons": [
+                "No buyer accepts this crop and quality"
+            ]
+        }
 
     # Highest effective value first
     buyer_options.sort(
@@ -46,6 +91,7 @@ def calculate_recommendation(produce, buyers):
     total_net_value = 0
 
     for buyer in buyer_options:
+
         if remaining_quantity <= 0:
             break
 
@@ -90,7 +136,9 @@ def calculate_recommendation(produce, buyers):
         "Highest effective value considered",
         "Transportation cost considered",
         "Spoilage risk considered",
-        "Buyer capacity considered"
+        "Buyer capacity considered",
+        "Buyer quality requirements considered",
+        "Crop matching considered"
     ]
 
     if strategy == "split":
