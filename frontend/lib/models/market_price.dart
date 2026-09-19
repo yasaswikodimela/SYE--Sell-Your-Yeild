@@ -29,20 +29,56 @@ class MarketPrice {
     this.arrivalsTons = 50,
   });
 
-  factory MarketPrice.fromJson(Map<String, dynamic> json) {
+  /// Parse a real Supabase market_prices row.
+  /// The Agmarknet data dump uses PascalCase / underscore column names:
+  ///   id, Commodity, Variety, Grade, Market, District, State,
+  ///   Arrival_Date, Min_Price, Max_Price, Modal_Price, Arrivals_Tonnes
+  /// Prices in the table are stored as paise (×100), so divide by 100
+  /// to get ₹/kg.
+  factory MarketPrice.fromBackendJson(Map<String, dynamic> json) {
+    double parsePrice(dynamic raw) {
+      final v = (raw as num?)?.toDouble() ?? 0.0;
+      // Agmarknet stores prices as paise; divide by 100 → ₹/kg
+      return v / 100.0;
+    }
+
     return MarketPrice(
-      id: json['id'] as String,
-      commodity: json['commodity'] as String,
-      variety: json['variety'] as String,
-      grade: json['grade'] as String,
-      market: json['market'] as String,
-      district: json['district'] as String,
-      state: json['state'] as String,
-      date: json['date'] as String,
-      minPrice: (json['minPrice'] as num).toDouble(),
-      maxPrice: (json['maxPrice'] as num).toDouble(),
-      modalPrice: (json['modalPrice'] as num).toDouble(),
-      priceChangePercent: (json['priceChangePercent'] as num?)?.toDouble() ?? 0.0,
+      id: json['id']?.toString() ?? '',
+      commodity: json['Commodity']?.toString() ?? '',
+      variety: json['Variety']?.toString() ?? '',
+      grade: json['Grade']?.toString() ?? '',
+      market: json['Market']?.toString() ?? '',
+      district: json['District']?.toString() ?? '',
+      state: json['State']?.toString() ?? '',
+      date: json['Arrival_Date']?.toString() ?? '',
+      minPrice: parsePrice(json['Min_Price']),
+      maxPrice: parsePrice(json['Max_Price']),
+      modalPrice: parsePrice(json['Modal_Price']),
+      priceChangePercent: 0.0,
+      arrivalsTons: (json['Arrivals_Tonnes'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  /// Legacy fromJson kept for backward compatibility.
+  factory MarketPrice.fromJson(Map<String, dynamic> json) {
+    // Try backend PascalCase keys first, fall back to camelCase
+    if (json.containsKey('Commodity')) {
+      return MarketPrice.fromBackendJson(json);
+    }
+    return MarketPrice(
+      id: json['id']?.toString() ?? '',
+      commodity: json['commodity']?.toString() ?? '',
+      variety: json['variety']?.toString() ?? '',
+      grade: json['grade']?.toString() ?? '',
+      market: json['market']?.toString() ?? '',
+      district: json['district']?.toString() ?? '',
+      state: json['state']?.toString() ?? '',
+      date: json['date']?.toString() ?? '',
+      minPrice: (json['minPrice'] as num?)?.toDouble() ?? 0.0,
+      maxPrice: (json['maxPrice'] as num?)?.toDouble() ?? 0.0,
+      modalPrice: (json['modalPrice'] as num?)?.toDouble() ?? 0.0,
+      priceChangePercent:
+          (json['priceChangePercent'] as num?)?.toDouble() ?? 0.0,
       arrivalsTons: (json['arrivalsTons'] as num?)?.toInt() ?? 50,
     );
   }

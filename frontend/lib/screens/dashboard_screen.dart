@@ -30,6 +30,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return ListenableBuilder(
       listenable: _appState,
       builder: (context, _) {
+        // Show loading while farmer data loads after login
+        if (_appState.isLoadingProduce) {
+          return const Scaffold(
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Loading your farm data...'),
+                ],
+              ),
+            ),
+          );
+        }
+
         final profile = _appState.farmerProfile;
         final produce = _appState.activeProduce;
         final rec = _appState.currentRecommendation;
@@ -543,7 +559,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         child: OutlinedButton(
                           onPressed: () {
                             _appState.activeProduce = prod;
-                            _appState.recalculateRecommendation();
+                            // Re-fetch recommendation from backend for this produce
+                            _appState.loadRecommendation();
                             Navigator.of(context).push(
                               MaterialPageRoute(
                                 builder: (_) => const RecommendationScreen(),

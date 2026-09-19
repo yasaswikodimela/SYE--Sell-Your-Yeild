@@ -22,6 +22,83 @@ class _RecommendationScreenState extends State<RecommendationScreen> {
     return ListenableBuilder(
       listenable: _appState,
       builder: (context, _) {
+        // Show loading spinner while recommendation is being fetched
+        if (_appState.isLoadingRecommendation) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('Smart Selling Recommendation')),
+            body: const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Fetching recommendation from backend...'),
+                ],
+              ),
+            ),
+          );
+        }
+
+        // Show error state
+        if (_appState.recommendationError != null &&
+            !_appState.hasRecommendation) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('Smart Selling Recommendation')),
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, color: Colors.red, size: 48),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Could not load recommendation.\n${_appState.recommendationError}',
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () => _appState.loadRecommendation(),
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        // No buyers / no suitable buyers
+        if (!_appState.hasRecommendation ||
+            !_appState.currentRecommendation.hasAllocations) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('Smart Selling Recommendation')),
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.store_mall_directory_outlined,
+                      size: 56, color: Color(0xFFD1D5DB)),
+                  const SizedBox(height: 16),
+                  Text(
+                    _appState.currentRecommendation.strategySummary,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 15),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'No verified buyers have active requirements for this crop.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Color(0xFF6B7280)),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () => _appState.loadRecommendation(),
+                    child: const Text('Refresh'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
         final rec = _appState.currentRecommendation;
 
         return Scaffold(
@@ -162,48 +239,54 @@ class _RecommendationScreenState extends State<RecommendationScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // Critical Insight Callout: Why headline price is misleading
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFEFF6FF),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFFBFDBFE)),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Icon(Icons.shield_outlined,
-                          color: AppTheme.blueInfo, size: 22),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Why Not Sell to the Highest Advertised Price?',
-                              style: TextStyle(
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.bold,
-                                color: AppTheme.blueInfo,
+                // Strategy insight callout
+                if (rec.hasAllocations) ...[
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEFF6FF),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFBFDBFE)),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.shield_outlined,
+                            color: AppTheme.blueInfo, size: 22),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Why This Selling Strategy?',
+                                style: TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppTheme.blueInfo,
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Hyderabad Mandi offers ₹33.50/kg, but at 280km distance, transport costs ₹5,500 and 14% spoilage causes ₹4,690 loss. Your real net profit would be only ₹23,310. SYE Smart Allocation yields ₹${rec.expectedNetValue.toInt()} (+₹${rec.netGainOverNaive.toInt()} extra)!',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Color(0xFF1E3A8A),
-                                height: 1.35,
+                              const SizedBox(height: 4),
+                              Text(
+                                rec.marketPricePerKg > 0
+                                    ? 'Mandi market price: ₹${rec.marketPricePerKg.toStringAsFixed(2)}/kg. '
+                                      'Best buyer offers ₹${rec.bestBuyerPricePerKg.toStringAsFixed(2)}/kg. '
+                                      'After transport and spoilage, expected net: ₹${rec.expectedNetValue.toStringAsFixed(0)}.'
+                                    : rec.strategySummary,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF1E3A8A),
+                                  height: 1.35,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 16),
+                  const SizedBox(height: 16),
+                ],
 
                 // Recommended Split Allocations Header
                 Row(

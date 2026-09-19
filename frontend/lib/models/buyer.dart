@@ -1,16 +1,16 @@
 class Buyer {
   final String id;
   final String buyerName;
-  final String businessType; // e.g., 'Retail Chain', 'Mandi Wholesaler', 'Food Processor', 'Local Exporter'
+  final String businessType;
   final String crop;
   final double pricePerKg;
   final int capacityKg;
   final String location;
   final double distanceKm;
-  final String requiredQuality; // 'Grade A', 'Grade B', 'Grade C'
+  final String requiredQuality;
   final double transportCostPerKg;
   final double rating;
-  final String paymentTerms; // 'Instant UPI / Cash', '24h Bank Transfer'
+  final String paymentTerms;
   final bool isVerified;
   final String contactPhone;
 
@@ -28,25 +28,61 @@ class Buyer {
     this.rating = 4.5,
     this.paymentTerms = 'Instant Bank Transfer',
     this.isVerified = true,
-    this.contactPhone = '+91 98765 43210',
+    this.contactPhone = '',
   });
 
-  factory Buyer.fromJson(Map<String, dynamic> json) {
+  /// Parse a real Supabase buyers row (snake_case columns).
+  /// buyers table: id, phone, business_name, contact_person,
+  ///               location, business_type, verification_status
+  /// Combined with buyer_requirements fields when available:
+  ///   crop, quantity_kg, price_per_kg, quality_required, transport_cost
+  factory Buyer.fromBackendJson(Map<String, dynamic> json) {
     return Buyer(
-      id: json['id'] as String,
-      buyerName: json['buyerName'] as String,
-      businessType: json['businessType'] as String? ?? 'Wholesaler',
-      crop: json['crop'] as String,
-      pricePerKg: (json['pricePerKg'] as num).toDouble(),
-      capacityKg: (json['capacityKg'] as num).toInt(),
-      location: json['location'] as String,
-      distanceKm: (json['distanceKm'] as num).toDouble(),
-      requiredQuality: json['requiredQuality'] as String,
-      transportCostPerKg: (json['transportCostPerKg'] as num).toDouble(),
+      id: json['id']?.toString() ?? '',
+      buyerName: json['business_name']?.toString() ?? '',
+      businessType: json['business_type']?.toString() ?? 'Wholesaler',
+      crop: json['crop']?.toString() ?? '',
+      pricePerKg: (json['price_per_kg'] as num?)?.toDouble() ?? 0.0,
+      capacityKg: (json['quantity_kg'] as num?)?.toInt() ??
+          (json['capacity_kg'] as num?)?.toInt() ??
+          0,
+      location: json['location']?.toString() ?? '',
+      distanceKm: (json['distance_km'] as num?)?.toDouble() ?? 0.0,
+      requiredQuality: json['quality_required']?.toString() ?? 'C',
+      transportCostPerKg:
+          (json['transport_cost'] as num?)?.toDouble() ?? 0.0,
       rating: (json['rating'] as num?)?.toDouble() ?? 4.5,
-      paymentTerms: json['paymentTerms'] as String? ?? 'Instant Bank Transfer',
+      paymentTerms:
+          json['payment_terms']?.toString() ?? 'Instant Bank Transfer',
+      isVerified:
+          json['verification_status']?.toString() == 'verified',
+      contactPhone: json['phone']?.toString() ?? '',
+    );
+  }
+
+  /// Legacy fromJson kept for backward compatibility.
+  /// Detects backend snake_case keys automatically.
+  factory Buyer.fromJson(Map<String, dynamic> json) {
+    if (json.containsKey('business_name')) {
+      return Buyer.fromBackendJson(json);
+    }
+    return Buyer(
+      id: json['id']?.toString() ?? '',
+      buyerName: json['buyerName']?.toString() ?? '',
+      businessType: json['businessType']?.toString() ?? 'Wholesaler',
+      crop: json['crop']?.toString() ?? '',
+      pricePerKg: (json['pricePerKg'] as num?)?.toDouble() ?? 0.0,
+      capacityKg: (json['capacityKg'] as num?)?.toInt() ?? 0,
+      location: json['location']?.toString() ?? '',
+      distanceKm: (json['distanceKm'] as num?)?.toDouble() ?? 0.0,
+      requiredQuality: json['requiredQuality']?.toString() ?? 'C',
+      transportCostPerKg:
+          (json['transportCostPerKg'] as num?)?.toDouble() ?? 0.0,
+      rating: (json['rating'] as num?)?.toDouble() ?? 4.5,
+      paymentTerms:
+          json['paymentTerms']?.toString() ?? 'Instant Bank Transfer',
       isVerified: json['isVerified'] as bool? ?? true,
-      contactPhone: json['contactPhone'] as String? ?? '+91 98765 43210',
+      contactPhone: json['contactPhone']?.toString() ?? '',
     );
   }
 

@@ -15,14 +15,12 @@ class _AddProduceScreenState extends State<AddProduceScreen> {
   final _formKey = GlobalKey<FormState>();
 
   String _selectedCrop = 'Tomato';
-  String _selectedGrade = 'Grade A';
-  final _varietyController =
-      TextEditingController(text: 'Hybrid Vaishnavi');
-  final _quantityController = TextEditingController(text: '1000');
-  final _shelfLifeController = TextEditingController(text: '4');
-  final _locationController = TextEditingController(text: 'Vijayawada, AP');
-  final _notesController = TextEditingController(
-      text: 'Freshly harvested, firm skin, suitable for retail and processing.');
+  String _selectedGrade = 'Grade A (Premium / Export)';
+  final _varietyController = TextEditingController();
+  final _quantityController = TextEditingController();
+  final _shelfLifeController = TextEditingController();
+  final _locationController = TextEditingController();
+  final _notesController = TextEditingController();
   DateTime _harvestDate = DateTime.now();
 
   final List<String> _crops = [
@@ -53,20 +51,26 @@ class _AddProduceScreenState extends State<AddProduceScreen> {
 
   void _submitProduce() {
     if (_formKey.currentState?.validate() ?? false) {
+      // Extract just "Grade A" / "Grade B" / "Grade C" from the full dropdown label
+      final gradeParts = _selectedGrade.split(' ');
+      final gradeShort = gradeParts.length >= 2
+          ? '${gradeParts[0]} ${gradeParts[1]}'
+          : _selectedGrade;
+
       final newProduce = Produce(
         id: 'prod_${DateTime.now().millisecondsSinceEpoch}',
         crop: _selectedCrop,
         variety: _varietyController.text.trim(),
         quantityKg: double.tryParse(_quantityController.text.trim()) ?? 1000.0,
-        qualityGrade:
-            '${_selectedGrade.split(' ')[0]} ${_selectedGrade.split(' ')[1]}',
+        qualityGrade: gradeShort,
         harvestDate: _harvestDate,
         shelfLifeDays: int.tryParse(_shelfLifeController.text.trim()) ?? 4,
         location: _locationController.text.trim(),
         notes: _notesController.text.trim(),
       );
 
-      AppState().addProduce(newProduce);
+      // Sync to backend and reload recommendation
+      AppState().addProduceWithSync(newProduce);
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -249,9 +253,7 @@ class _AddProduceScreenState extends State<AddProduceScreen> {
               ),
               const SizedBox(height: 6),
               DropdownButtonFormField<String>(
-                value: _selectedGrade.contains('Grade A')
-                    ? _grades[0]
-                    : _grades[1],
+                value: _selectedGrade,
                 decoration: const InputDecoration(
                   prefixIcon: Icon(Icons.verified_outlined,
                       color: AppTheme.primaryGreen),

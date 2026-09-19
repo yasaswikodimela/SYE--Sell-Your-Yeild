@@ -5,6 +5,7 @@ import '../theme.dart';
 import 'buyer_dashboard_screen.dart';
 import 'dashboard_screen.dart';
 import '../models/farmer_profile.dart';
+import 'register_step1_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -39,12 +40,17 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (result['success'] == true) {
       if (!_isBuyer) {
-          AppState().farmerId = result['farmer']['id']?.toString();
-          AppState().farmerProfile =
-          FarmerProfile.fromJson(result['farmer']);
-          await AppState().loadFarmerProduce();
-}
+        AppState().farmerId = result['farmer']['id']?.toString();
+        AppState().farmerProfile =
+            FarmerProfile.fromJson(result['farmer'] as Map<String, dynamic>);
+        // Load produce, market prices, and recommendation in sequence
+        await AppState().loadFarmerData();
+      } else {
+        AppState().buyerId = result['buyer']['id']?.toString();
+      }
       AppState().isFarmerMode = !_isBuyer;
+
+      if (!mounted) return;
 
       if (_isBuyer) {
         Navigator.of(context).pushReplacement(
@@ -60,10 +66,11 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
     } else {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            result['message'] ?? 'Invalid phone number or password',
+            result['message']?.toString() ?? 'Invalid phone number or password',
           ),
         ),
       );
@@ -310,7 +317,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // Demo Autofill Helper
+                // Test Account Helper
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
@@ -324,15 +331,15 @@ class _LoginScreenState extends State<LoginScreen> {
                       const SizedBox(width: 8),
                       const Expanded(
                         child: Text(
-                          'Demo Account: Ramesh Naidu (Gannavaram, AP)',
+                          'Test Account: Ramesh Kumar (Vijayawada)',
                           style: TextStyle(fontSize: 12, color: AppTheme.darkGreen, fontWeight: FontWeight.w500),
                         ),
                       ),
                       TextButton(
                         onPressed: () {
                           setState(() {
-                            _phoneController.text = '9440123456';
-                            _passwordController.text = 'kisan123';
+                            _phoneController.text = '9876543210';
+                            _passwordController.text = 'test123';
                             _isBuyer = false;
                           });
                         },
@@ -340,7 +347,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           padding: EdgeInsets.zero,
                           minimumSize: const Size(50, 30),
                         ),
-                        child: const Text('Reset', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                        child: const Text('Fill', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                       ),
                     ],
                   ),
@@ -357,12 +364,14 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     GestureDetector(
                       onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Registration is open. Please contact your local AMC or login with demo!')),
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => RegisterStep1Screen(isBuyer: _isBuyer),
+                          ),
                         );
                       },
                       child: const Text(
-                        'Register as Farmer',
+                        'Register',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,

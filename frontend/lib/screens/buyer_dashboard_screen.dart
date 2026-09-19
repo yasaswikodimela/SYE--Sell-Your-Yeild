@@ -148,8 +148,6 @@ class _BuyerDashboardScreenState extends State<BuyerDashboardScreen> {
                         divisions: 18,
                         onChanged: (v) {
                           setState(() => _myCapacity = v);
-                          _appState.recalculateRecommendation(
-                              freshMartCap: v.toInt());
                         },
                       ),
                     ),

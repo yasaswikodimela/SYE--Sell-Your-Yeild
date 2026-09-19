@@ -20,6 +20,10 @@ class _OrdersScreenState extends State<OrdersScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
+    // Reload orders from backend each time this screen is opened
+    if (_appState.farmerId != null) {
+      _appState.loadFarmerOrders();
+    }
   }
 
   @override

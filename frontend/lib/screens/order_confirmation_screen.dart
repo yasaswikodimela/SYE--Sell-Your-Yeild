@@ -15,14 +15,21 @@ class OrderConfirmationScreen extends StatefulWidget {
 class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
   final _appState = AppState();
   bool _hasCreatedOrders = false;
+  bool _isCreatingOrders = false;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!_hasCreatedOrders) {
-        _appState.createOrdersFromRecommendation();
-        setState(() => _hasCreatedOrders = true);
+        setState(() => _isCreatingOrders = true);
+        await _appState.createOrdersFromRecommendation();
+        if (mounted) {
+          setState(() {
+            _hasCreatedOrders = true;
+            _isCreatingOrders = false;
+          });
+        }
       }
     });
   }
@@ -31,6 +38,21 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
   Widget build(BuildContext context) {
     final rec = _appState.currentRecommendation;
     final farmer = _appState.farmerProfile;
+
+    if (_isCreatingOrders) {
+      return const Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Creating orders in Supabase...'),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       body: SafeArea(

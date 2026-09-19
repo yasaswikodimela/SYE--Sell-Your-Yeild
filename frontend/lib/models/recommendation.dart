@@ -2,6 +2,7 @@ import 'buyer.dart';
 
 class SplitAllocation {
   final Buyer buyer;
+  final String requirementId; // backend requirement_id, used when creating orders
   final double allocatedQtyKg;
   final double pricePerKg;
   final double transportCost;
@@ -21,24 +22,28 @@ class SplitAllocation {
     required this.grossRevenue,
     required this.netValue,
     required this.allocationReason,
+    this.requirementId = '',
   });
 
   factory SplitAllocation.fromJson(Map<String, dynamic> json) {
     return SplitAllocation(
       buyer: Buyer.fromJson(json['buyer'] as Map<String, dynamic>),
+      requirementId: json['requirementId']?.toString() ?? '',
       allocatedQtyKg: (json['allocatedQtyKg'] as num).toDouble(),
       pricePerKg: (json['pricePerKg'] as num).toDouble(),
       transportCost: (json['transportCost'] as num).toDouble(),
-      spoilageRiskPercentage: (json['spoilageRiskPercentage'] as num).toDouble(),
+      spoilageRiskPercentage:
+          (json['spoilageRiskPercentage'] as num).toDouble(),
       spoilageLossAmount: (json['spoilageLossAmount'] as num).toDouble(),
       grossRevenue: (json['grossRevenue'] as num).toDouble(),
       netValue: (json['netValue'] as num).toDouble(),
-      allocationReason: json['allocationReason'] as String,
+      allocationReason: json['allocationReason']?.toString() ?? '',
     );
   }
 
   Map<String, dynamic> toJson() => {
         'buyer': buyer.toJson(),
+        'requirementId': requirementId,
         'allocatedQtyKg': allocatedQtyKg,
         'pricePerKg': pricePerKg,
         'transportCost': transportCost,
@@ -76,6 +81,10 @@ class Recommendation {
   final double naiveSingleBuyerNetValue;
   final double netGainOverNaive;
   final List<DecisionFactor> decisionFactors;
+  // Extra fields populated from backend
+  final double remainingQuantityKg;
+  final double marketPricePerKg;
+  final double bestBuyerPricePerKg;
 
   const Recommendation({
     required this.id,
@@ -91,7 +100,11 @@ class Recommendation {
     required this.naiveSingleBuyerNetValue,
     required this.netGainOverNaive,
     required this.decisionFactors,
+    this.remainingQuantityKg = 0,
+    this.marketPricePerKg = 0,
+    this.bestBuyerPricePerKg = 0,
   });
 
   bool get isSplit => allocations.length > 1;
+  bool get hasAllocations => allocations.isNotEmpty;
 }

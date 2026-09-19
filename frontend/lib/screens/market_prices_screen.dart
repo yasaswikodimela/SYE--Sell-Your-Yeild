@@ -26,22 +26,42 @@ class _MarketPricesScreenState extends State<MarketPricesScreen> {
   ];
 
   @override
-  Widget build(BuildContext context) {
-    final prices = _appState.marketPrices.where((p) {
-      if (_selectedCropFilter == 'Tomato' && p.commodity != 'Tomato') return false;
-      if (_selectedCropFilter == 'Green Chilli' && p.commodity != 'Green Chilli') return false;
-      if (_selectedCropFilter == 'Andhra Pradesh' && p.state != 'Andhra Pradesh') return false;
-      if (_selectedCropFilter == 'Telangana' && p.state != 'Telangana') return false;
-      if (_searchQuery.isNotEmpty) {
-        final query = _searchQuery.toLowerCase();
-        return p.market.toLowerCase().contains(query) ||
-            p.commodity.toLowerCase().contains(query) ||
-            p.district.toLowerCase().contains(query);
-      }
-      return true;
-    }).toList();
+  void initState() {
+    super.initState();
+    // Load market prices for the active crop if not already loaded
+    if (_appState.marketPrices.isEmpty && _appState.activeProduce.crop.isNotEmpty) {
+      _appState.loadMarketPrices(_appState.activeProduce.crop);
+    }
+  }
 
-    return Scaffold(
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: _appState,
+      builder: (context, _) {
+        final prices = _appState.marketPrices.where((p) {
+          if (_selectedCropFilter == 'Tomato' && p.commodity != 'Tomato') return false;
+          if (_selectedCropFilter == 'Green Chilli' && p.commodity != 'Green Chilli') return false;
+          if (_selectedCropFilter == 'Andhra Pradesh' && p.state != 'Andhra Pradesh') return false;
+          if (_selectedCropFilter == 'Telangana' && p.state != 'Telangana') return false;
+          if (_searchQuery.isNotEmpty) {
+            final query = _searchQuery.toLowerCase();
+            return p.market.toLowerCase().contains(query) ||
+                p.commodity.toLowerCase().contains(query) ||
+                p.district.toLowerCase().contains(query);
+          }
+          return true;
+        }).toList();
+
+        // Loading state
+        if (_appState.isLoadingMarketPrices && prices.isEmpty) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('Market Price Intelligence')),
+            body: const Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        return Scaffold(
       appBar: AppBar(
         title: const Text('Market Price Intelligence'),
       ),
@@ -235,6 +255,8 @@ class _MarketPricesScreenState extends State<MarketPricesScreen> {
           ],
         ),
       ),
+        );
+      },
     );
   }
 }

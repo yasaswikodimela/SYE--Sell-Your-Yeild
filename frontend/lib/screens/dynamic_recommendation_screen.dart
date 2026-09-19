@@ -15,359 +15,394 @@ class _DynamicRecommendationScreenState
     extends State<DynamicRecommendationScreen> {
   final _appState = AppState();
 
-  late double _transportFactor;
-  late double _freshMartCap;
-  late double _tirupatiCap;
-  late double _shelfLifeDays;
-
+  // Simulation parameters (displayed only — what-if simulation shown
+  // in this screen uses local variables; the real recommendation
+  // is always fetched from the backend via _appState.loadRecommendation())
+  double _shelfLifeDays = 4.0;
   bool _hasRecalculated = false;
+  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    _transportFactor = _appState.simTransportMultiplier;
-    _freshMartCap = _appState.simFreshMartCapacity.toDouble();
-    _tirupatiCap = _appState.simTirupatiCapacity.toDouble();
-    _shelfLifeDays = _appState.simShelfLifeDays.toDouble();
+    _shelfLifeDays =
+        _appState.activeProduce.shelfLifeDays.toDouble();
   }
 
-  void _triggerRecalculation() {
+  Future<void> _triggerRecalculation() async {
     setState(() {
-      _appState.recalculateRecommendation(
-        transportFactor: _transportFactor,
-        freshMartCap: _freshMartCap.toInt(),
-        tirupatiCap: _tirupatiCap.toInt(),
-        shelfDays: _shelfLifeDays.toInt(),
-      );
-      _hasRecalculated = true;
+      _isLoading = true;
+      _hasRecalculated = false;
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Strategy dynamically recalculated with updated constraints!'),
-        backgroundColor: AppTheme.primaryGreen,
-        duration: Duration(seconds: 2),
-      ),
-    );
+    // Re-fetch recommendation from backend with current produce data
+    await _appState.loadRecommendation();
+
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+        _hasRecalculated = true;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Recommendation refreshed from backend!'),
+          backgroundColor: AppTheme.primaryGreen,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   void _resetDefaults() {
     setState(() {
-      _transportFactor = 1.0;
-      _freshMartCap = 600.0;
-      _tirupatiCap = 800.0;
-      _shelfLifeDays = 4.0;
-      _appState.recalculateRecommendation(
-        transportFactor: 1.0,
-        freshMartCap: 600,
-        tirupatiCap: 800,
-        shelfDays: 4,
-      );
-      _hasRecalculated = true;
+      _shelfLifeDays =
+          _appState.activeProduce.shelfLifeDays.toDouble();
+      _hasRecalculated = false;
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final rec = _appState.currentRecommendation;
-    final totalHarvest = _appState.activeProduce.quantityKg;
+    return ListenableBuilder(
+      listenable: _appState,
+      builder: (context, _) {
+        final rec = _appState.currentRecommendation;
+        final totalHarvest = _appState.activeProduce.quantityKg;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Dynamic What-If Recalculator'),
-        actions: [
-          IconButton(
-            tooltip: 'Reset to Defaults',
-            icon: const Icon(Icons.refresh_rounded),
-            onPressed: _resetDefaults,
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('Dynamic What-If Recalculator'),
+            actions: [
+              IconButton(
+                tooltip: 'Reset',
+                icon: const Icon(Icons.refresh_rounded),
+                onPressed: _resetDefaults,
+              ),
+            ],
           ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: AppTheme.paleGreen,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFC8E6C9)),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.tune_rounded, color: AppTheme.primaryGreen, size: 24),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Simulate real-time supply chain shifts (diesel rate spikes, buyer capacity cuts, or shelf-life decay). Watch SYE dynamically re-route kilograms in real time.',
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        color: AppTheme.darkGreen,
-                        height: 1.35,
-                      ),
-                    ),
+          body: SingleChildScrollView(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: AppTheme.paleGreen,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFC8E6C9)),
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Simulation Sliders Card
-            Card(
-              margin: EdgeInsets.zero,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-                side: const BorderSide(color: Color(0xFFE5E7EB)),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Interactive Simulation Parameters',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.textDark,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-
-                    // Slider 1: FreshMart Buyer Capacity
-                    _SliderControl(
-                      title: 'FreshMart Capacity Limit',
-                      valueText: '${_freshMartCap.toInt()} kg',
-                      min: 200,
-                      max: 1000,
-                      divisions: 16,
-                      value: _freshMartCap,
-                      icon: Icons.inventory_2_outlined,
-                      subtitle: 'Simulates buyer reducing or expanding procurement',
-                      onChanged: (v) => setState(() => _freshMartCap = v),
-                    ),
-                    const Divider(height: 24),
-
-                    // Slider 2: Freight & Transport Rate Multiplier
-                    _SliderControl(
-                      title: 'Diesel / Freight Rate Multiplier',
-                      valueText: '${_transportFactor.toStringAsFixed(1)}x (~₹${(1620 * _transportFactor).toInt()})',
-                      min: 0.8,
-                      max: 2.5,
-                      divisions: 17,
-                      value: _transportFactor,
-                      icon: Icons.local_shipping_outlined,
-                      subtitle: 'Simulates fuel price hike or urgent toll charges',
-                      onChanged: (v) => setState(() => _transportFactor = v),
-                    ),
-                    const Divider(height: 24),
-
-                    // Slider 3: Shelf Life Remaining
-                    _SliderControl(
-                      title: 'Produce Shelf Life Remaining',
-                      valueText: '${_shelfLifeDays.toInt()} Days',
-                      min: 1,
-                      max: 7,
-                      divisions: 6,
-                      value: _shelfLifeDays,
-                      icon: Icons.hourglass_top_outlined,
-                      subtitle: 'Lower shelf-life penalizes distant travel',
-                      onChanged: (v) => setState(() => _shelfLifeDays = v),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Recalculate Button
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _triggerRecalculation,
-                        icon: const Icon(Icons.bolt_rounded, size: 20),
-                        label: const Text(
-                          'Recalculate Strategy Now',
-                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.primaryGreen,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // Dynamic Result Display Card
-            Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: _hasRecalculated
-                      ? AppTheme.primaryGreen
-                      : const Color(0xFFE5E7EB),
-                  width: _hasRecalculated ? 2 : 1,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.06),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  child: const Row(
                     children: [
-                      Row(
-                        children: [
-                          Icon(
-                            _hasRecalculated
-                                ? Icons.check_circle_rounded
-                                : Icons.lightbulb_rounded,
-                            color: AppTheme.primaryGreen,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 8),
-                          const Text(
-                            'Dynamic Recalculation Result',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              color: AppTheme.textDark,
-                            ),
-                          ),
-                        ],
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: AppTheme.paleGreen,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
+                      Icon(Icons.tune_rounded,
+                          color: AppTheme.primaryGreen, size: 24),
+                      SizedBox(width: 12),
+                      Expanded(
                         child: Text(
-                          '${totalHarvest.toInt()} kg Harvest',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
+                          'Refresh the SYE recommendation from the backend engine. The recommendation engine considers buyer capacity, transport costs, spoilage risk, market prices and quality.',
+                          style: TextStyle(
+                            fontSize: 12.5,
                             color: AppTheme.darkGreen,
+                            height: 1.35,
                           ),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 14),
+                ),
+                const SizedBox(height: 16),
 
-                  // Updated Dynamic Allocations
-                  ...rec.allocations.map((alloc) {
-                    final share = (alloc.allocatedQtyKg / totalHarvest) * 100;
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF9FAFB),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFFE5E7EB)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                // Simulation info Card
+                Card(
+                  margin: EdgeInsets.zero,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: const BorderSide(color: Color(0xFFE5E7EB)),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Current Produce Parameters',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.textDark,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+
+                        _InfoRow(
+                          label: 'Crop',
+                          value: _appState.activeProduce.crop.isEmpty
+                              ? 'N/A'
+                              : _appState.activeProduce.crop,
+                        ),
+                        const SizedBox(height: 8),
+                        _InfoRow(
+                          label: 'Quantity',
+                          value:
+                              '${_appState.activeProduce.quantityKg.toInt()} kg',
+                        ),
+                        const SizedBox(height: 8),
+                        _InfoRow(
+                          label: 'Quality',
+                          value: _appState.activeProduce.qualityGrade,
+                        ),
+                        const SizedBox(height: 8),
+
+                        // Shelf life slider (display only; actual shelf life
+                        // comes from the produce record)
+                        _SliderControl(
+                          title: 'Shelf Life Remaining',
+                          valueText: '${_shelfLifeDays.toInt()} Days',
+                          min: 1,
+                          max: 14,
+                          divisions: 13,
+                          value: _shelfLifeDays,
+                          icon: Icons.hourglass_top_outlined,
+                          subtitle:
+                              'Lower shelf-life → higher spoilage risk in engine',
+                          onChanged: (v) =>
+                              setState(() => _shelfLifeDays = v),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Refresh Button
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed:
+                                _isLoading ? null : _triggerRecalculation,
+                            icon: _isLoading
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white),
+                                  )
+                                : const Icon(Icons.bolt_rounded, size: 20),
+                            label: Text(
+                              _isLoading
+                                  ? 'Fetching from backend...'
+                                  : 'Refresh Recommendation',
+                              style: const TextStyle(
+                                  fontSize: 15, fontWeight: FontWeight.bold),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.primaryGreen,
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Result Display Card
+                Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: _hasRecalculated
+                          ? AppTheme.primaryGreen
+                          : const Color(0xFFE5E7EB),
+                      width: _hasRecalculated ? 2 : 1,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(
-                                alloc.buyer.buyerName,
-                                style: const TextStyle(
-                                  fontSize: 14,
+                              Icon(
+                                _hasRecalculated
+                                    ? Icons.check_circle_rounded
+                                    : Icons.lightbulb_rounded,
+                                color: AppTheme.primaryGreen,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              const Text(
+                                'Recommendation Result',
+                                style: TextStyle(
+                                  fontSize: 15,
                                   fontWeight: FontWeight.bold,
                                   color: AppTheme.textDark,
                                 ),
                               ),
-                              Text(
-                                '${alloc.allocatedQtyKg.toInt()} kg (${share.toInt()}%)',
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppTheme.primaryGreen,
-                                ),
-                              ),
                             ],
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '@ ₹${alloc.pricePerKg.toStringAsFixed(1)}/kg • Freight: ₹${alloc.transportCost.toInt()} • Net: ₹${alloc.netValue.toInt()}',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: AppTheme.textMuted,
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: AppTheme.paleGreen,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              '${totalHarvest.toInt()} kg Harvest',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.darkGreen,
+                              ),
                             ),
                           ),
                         ],
                       ),
-                    );
-                  }).toList(),
+                      const SizedBox(height: 14),
 
-                  const SizedBox(height: 10),
-                  const Divider(height: 1, color: Color(0xFFF3F4F6)),
-                  const SizedBox(height: 12),
+                      if (rec.allocations.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 12),
+                          child: Text(
+                            'No buyer allocations available. Tap "Refresh Recommendation" to fetch the latest.',
+                            style: TextStyle(color: AppTheme.textMuted),
+                          ),
+                        )
+                      else
+                        ...rec.allocations.map((alloc) {
+                          final share = totalHarvest > 0
+                              ? (alloc.allocatedQtyKg / totalHarvest) * 100
+                              : 0.0;
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF9FAFB),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                  color: const Color(0xFFE5E7EB)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      alloc.buyer.buyerName,
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppTheme.textDark,
+                                      ),
+                                    ),
+                                    Text(
+                                      '${alloc.allocatedQtyKg.toInt()} kg (${share.toInt()}%)',
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppTheme.primaryGreen,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '@ ₹${alloc.pricePerKg.toStringAsFixed(1)}/kg • Freight: ₹${alloc.transportCost.toInt()} • Net: ₹${alloc.netValue.toInt()}',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AppTheme.textMuted,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
 
-                  // Net Payout summary
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Recalculated Net Take-Home:',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: AppTheme.darkGreen,
-                        ),
-                      ),
-                      Text(
-                        '₹${rec.expectedNetValue.toStringAsFixed(0)}',
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w900,
-                          color: AppTheme.darkGreen,
-                        ),
+                      const SizedBox(height: 10),
+                      const Divider(height: 1, color: Color(0xFFF3F4F6)),
+                      const SizedBox(height: 12),
+
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Expected Net Take-Home:',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.darkGreen,
+                            ),
+                          ),
+                          Text(
+                            '₹${rec.expectedNetValue.toStringAsFixed(0)}',
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w900,
+                              color: AppTheme.darkGreen,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // Confirm Order from recalculated state
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const OrderConfirmationScreen(),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.check_circle_outline_rounded),
-                label: const Text('Proceed with this Dynamic Plan'),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
-              ),
+                const SizedBox(height: 20),
+
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const OrderConfirmationScreen(),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.check_circle_outline_rounded),
+                    label: const Text('Proceed with this Plan'),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
             ),
-            const SizedBox(height: 24),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  final String label;
+  final String value;
+  const _InfoRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label,
+            style: const TextStyle(fontSize: 13, color: AppTheme.textMuted)),
+        Text(value,
+            style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.textDark)),
+      ],
     );
   }
 }
