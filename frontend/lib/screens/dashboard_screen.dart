@@ -56,7 +56,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
         switch (_navIndex) {
           case 0:
             currentBody = _buildHomeTab(
-                context, profile, produce, rec, recentPrices, recentOrders);
+              context,
+              profile,
+              produce,
+              rec,
+              recentPrices,
+              recentOrders,
+            );
             break;
           case 1:
             currentBody = _buildHarvestsTab(context);
@@ -69,7 +75,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
             break;
           default:
             currentBody = _buildHomeTab(
-                context, profile, produce, rec, recentPrices, recentOrders);
+              context,
+              profile,
+              produce,
+              rec,
+              recentPrices,
+              recentOrders,
+            );
         }
 
         return Scaffold(
@@ -110,8 +122,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         child: CircleAvatar(
                           radius: 22,
                           backgroundColor: AppTheme.paleGreen,
-                          child: const Icon(Icons.person,
-                              color: AppTheme.primaryGreen, size: 26),
+                          child: const Icon(
+                            Icons.person,
+                            color: AppTheme.primaryGreen,
+                            size: 26,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -141,6 +156,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   Row(
                     children: [
                       IconButton(
+                        tooltip: 'Refresh order status',
+                        onPressed: _appState.isLoadingOrders
+                            ? null
+                            : () => _appState.loadFarmerOrders(),
+                        icon: const Icon(Icons.refresh_rounded),
+                      ),
+                      IconButton(
                         tooltip: 'Logout',
                         onPressed: () {
                           _appState.reset();
@@ -159,7 +181,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
 
-            ..._buildFarmerNotifications(recentOrders),
+            ..._buildFarmerNotifications(_appState.orders),
 
             // Quick Stats Card (Location & Farm Size)
             Container(
@@ -175,8 +197,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.location_on,
-                          color: AppTheme.primaryGreen, size: 16),
+                      const Icon(
+                        Icons.location_on,
+                        color: AppTheme.primaryGreen,
+                        size: 16,
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         '${profile.village}, ${profile.district}',
@@ -234,8 +259,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   color: AppTheme.primaryGreen,
                                   borderRadius: BorderRadius.circular(10),
                                 ),
-                                child: const Icon(Icons.eco_rounded,
-                                    color: Colors.white, size: 20),
+                                child: const Icon(
+                                  Icons.eco_rounded,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
                               ),
                               const SizedBox(width: 10),
                               Column(
@@ -263,12 +291,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ),
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 4),
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(
-                                  color: AppTheme.lightGreen, width: 0.8),
+                                color: AppTheme.lightGreen,
+                                width: 0.8,
+                              ),
                             ),
                             child: Text(
                               produce.qualityGrade,
@@ -310,15 +342,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               onPressed: () {
                                 Navigator.of(context).push(
                                   MaterialPageRoute(
-                                    builder: (_) => const RecommendationScreen(),
+                                    builder: (_) =>
+                                        const RecommendationScreen(),
                                   ),
                                 );
                               },
                               icon: const Icon(Icons.auto_awesome, size: 18),
                               label: const Text('View Smart Selling Plan'),
                               style: ElevatedButton.styleFrom(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 12),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
                               ),
                             ),
                           ),
@@ -332,8 +366,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               );
                             },
                             tooltip: 'Add New Harvest',
-                            icon: const Icon(Icons.add,
-                                color: AppTheme.darkGreen),
+                            icon: const Icon(
+                              Icons.add,
+                              color: AppTheme.darkGreen,
+                            ),
                           ),
                         ],
                       ),
@@ -362,7 +398,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     onPressed: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(
-                            builder: (_) => const RecommendationScreen()),
+                          builder: (_) => const RecommendationScreen(),
+                        ),
                       );
                     },
                     child: const Text('Details →'),
@@ -375,13 +412,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
               onExploreDetails: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(
-                      builder: (_) => const RecommendationScreen()),
+                    builder: (_) => const RecommendationScreen(),
+                  ),
                 );
               },
               onConfirmOrder: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(
-                      builder: (_) => const OrderConfirmationScreen()),
+                    builder: (_) => const OrderConfirmationScreen(),
+                  ),
                 );
               },
             ),
@@ -408,10 +447,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ],
               ),
             ),
-            ...recentPrices.map((p) => MarketPriceCard(
-                  price: p,
-                  onTap: () => setState(() => _navIndex = 2),
-                )),
+            ...recentPrices.map(
+              (p) => MarketPriceCard(
+                price: p,
+                onTap: () => setState(() => _navIndex = 2),
+              ),
+            ),
             const SizedBox(height: 14),
 
             // Active Orders Summary Header
@@ -431,8 +472,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   TextButton(
                     onPressed: () {
                       Navigator.of(context).push(
-                        MaterialPageRoute(
-                            builder: (_) => const OrdersScreen()),
+                        MaterialPageRoute(builder: (_) => const OrdersScreen()),
                       );
                     },
                     child: const Text('All Orders →'),
@@ -440,15 +480,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ],
               ),
             ),
-            ...recentOrders.map((o) => OrderCard(
-                  order: o,
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                          builder: (_) => const OrdersScreen()),
-                    );
-                  },
-                )),
+            ...recentOrders.map(
+              (o) => OrderCard(
+                order: o,
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const OrdersScreen()),
+                  );
+                },
+              ),
+            ),
           ],
         ),
       ),
@@ -457,16 +498,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   List<Widget> _buildFarmerNotifications(List recentOrders) {
     final updates = recentOrders
-        .where((order) =>
-            order.status == 'Confirmed' || order.status == 'Rejected')
+        .where(
+          (order) => order.status == 'Confirmed' || order.status == 'Rejected',
+        )
         .toList();
     if (updates.isEmpty) return [];
 
-    final order = updates.first;
-    final accepted = order.status == 'Confirmed';
-    final buyer = order.buyerName.isEmpty ? 'the buyer' : order.buyerName;
-    return [
-      Container(
+    return updates.take(3).map((order) {
+      final accepted = order.status == 'Confirmed';
+      final buyer = order.buyerName.isEmpty ? 'the buyer' : order.buyerName;
+      return Container(
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
@@ -498,8 +539,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ],
         ),
-      ),
-    ];
+      );
+    }).toList();
   }
 
   Widget _buildHarvestsTab(BuildContext context) {
@@ -510,8 +551,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         title: const Text('My Harvests & Produce'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.add_circle_outline_rounded,
-                color: AppTheme.primaryGreen),
+            icon: const Icon(
+              Icons.add_circle_outline_rounded,
+              color: AppTheme.primaryGreen,
+            ),
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const AddProduceScreen()),
@@ -532,7 +575,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
               side: BorderSide(
-                color: isCurrent ? AppTheme.primaryGreen : const Color(0xFFE5E7EB),
+                color: isCurrent
+                    ? AppTheme.primaryGreen
+                    : const Color(0xFFE5E7EB),
                 width: isCurrent ? 1.5 : 1,
               ),
             ),
@@ -554,7 +599,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
                           color: isCurrent
                               ? AppTheme.paleGreen
@@ -578,13 +625,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   Text(
                     'Variety: ${prod.variety} • ${prod.qualityGrade}',
                     style: const TextStyle(
-                        fontSize: 13, color: AppTheme.textMuted),
+                      fontSize: 13,
+                      color: AppTheme.textMuted,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     '📍 ${prod.location} • Shelf Life: ${prod.shelfLifeDays} days',
                     style: const TextStyle(
-                        fontSize: 12, color: AppTheme.textDark),
+                      fontSize: 12,
+                      color: AppTheme.textDark,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   Row(
@@ -615,13 +666,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: AppTheme.primaryGreen,
         onPressed: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const AddProduceScreen()),
-          );
+          Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const AddProduceScreen()));
         },
         icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text('Add Produce',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        label: const Text(
+          'Add Produce',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
       ),
     );
   }

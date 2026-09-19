@@ -7,7 +7,7 @@ class ApiService {
   // FastAPI backend
   static String get baseUrl {
     if (!kIsWeb && Platform.isAndroid) {
-      return 'http://10.0.2.2:8000';
+      return 'http://127.0.0.1:8000';
     }
     return 'http://127.0.0.1:8000';
   }
@@ -124,9 +124,9 @@ class ApiService {
   // -------------------------
   // GET BUYER REQUIREMENTS
   // -------------------------
-  static Future<List<dynamic>> getBuyerRequirements() async {
+  static Future<List<dynamic>> getBuyerRequirements(String buyerId) async {
     final response = await http.get(
-      Uri.parse('$baseUrl/buyer-requirements'),
+      Uri.parse('$baseUrl/buyer-requirements?buyer_id=$buyerId'),
     );
     if (response.statusCode != 200) {
       throw Exception('Server error ${response.statusCode}');
@@ -188,6 +188,42 @@ class ApiService {
     return jsonDecode(response.body) as List<dynamic>;
   }
 
+  static Future<List<dynamic>> getBuyerMatchingProduce(String buyerId) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/buyers/$buyerId/matching-produce'),
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Server error ${response.statusCode}');
+    }
+    return jsonDecode(response.body) as List<dynamic>;
+  }
+
+  // -------------------------
+  // UPDATE ORDER STATUS (BUYER ACTION)
+  // -------------------------
+  static Future<Map<String, dynamic>> updateOrderStatus(
+    String orderId,
+    String status,
+    String buyerId,
+  ) async {
+    final response = await http.patch(
+      Uri.parse('$baseUrl/orders/$orderId/status?buyer_id=$buyerId'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'status': status}),
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Server error ${response.statusCode}');
+    }
+
+    final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+    if (decoded['success'] != true) {
+      throw Exception(
+        decoded['message']?.toString() ?? 'Unable to update order',
+      );
+    }
+    return decoded;
+  }
+
   // -------------------------
   // BUYER LOGIN
   // -------------------------
@@ -227,9 +263,7 @@ class ApiService {
   // GET MARKET PRICES
   // -------------------------
   static Future<List<dynamic>> getMarketPrices(String crop) async {
-    final response = await http.get(
-      Uri.parse('$baseUrl/market-prices/$crop'),
-    );
+    final response = await http.get(Uri.parse('$baseUrl/market-prices/$crop'));
     if (response.statusCode != 200) {
       throw Exception('Server error ${response.statusCode}');
     }
@@ -244,6 +278,21 @@ class ApiService {
   ) async {
     final response = await http.post(
       Uri.parse('$baseUrl/buyers/requirements'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(requirementData),
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Server error ${response.statusCode}');
+    }
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  static Future<Map<String, dynamic>> updateBuyerRequirement(
+    String requirementId,
+    Map<String, dynamic> requirementData,
+  ) async {
+    final response = await http.patch(
+      Uri.parse('$baseUrl/buyers/requirements/$requirementId'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode(requirementData),
     );

@@ -1,9 +1,9 @@
-from database import supabase
+from backend.database import supabase
 from fastapi import FastAPI
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 
-from services.recommendation import calculate_recommendation
+from backend.services.recommendation import calculate_recommendation
 
 app = FastAPI()
 app.add_middleware(
@@ -64,6 +64,11 @@ class OrderRequest(BaseModel):
     price_per_kg: float
 class OrderStatusRequest(BaseModel):
     status: str
+
+
+def _quality_rank(quality: str) -> int:
+    normalized = quality.strip().upper().replace("GRADE ", "")
+    return {"A": 3, "B": 2, "C": 1}.get(normalized[:1], 0)
 
 @app.get("/")
 def home():
@@ -134,6 +139,7 @@ def recommendation(produce: ProduceRequest):
 
         buyers.append({
             "id": buyer["id"],
+            "requirement_id": requirement["id"],
             "name": buyer["business_name"],
             "location": buyer["location"],
             "crop": requirement["crop"],
@@ -382,7 +388,7 @@ def add_buyer_requirement(requirement: BuyerRequirementRequest):
         "requirement": response.data[0]
     }
 @app.get("/buyer-requirements")
-def get_buyer_requirements():
+def get_buyer_requirements(buyer_id: str | None = None):
 
     # Get only verified buyers
     buyers_response = (
@@ -399,6 +405,8 @@ def get_buyer_requirements():
         return []
 
     verified_ids = [buyer["id"] for buyer in verified_buyers]
+    if buyer_id is not None and buyer_id not in verified_ids:
+        return []
 
     # Get only active requirements
     requirements_response = (
@@ -406,8 +414,11 @@ def get_buyer_requirements():
         .table("buyer_requirements")
         .select("*")
         .eq("status", "active")
-        .execute()
+        .eq("buyer_id", buyer_id) if buyer_id is not None else
+        supabase.table("buyer_requirements").select("*").eq("status", "active")
     )
+
+    requirements_response = requirements_response.execute()
 
     requirements = requirements_response.data
 
@@ -433,6 +444,7 @@ def get_buyer_requirements():
                 "price_per_kg": requirement["price_per_kg"],
                 "quality_required": requirement["quality_required"],
                 "required_by": requirement["required_by"],
+                "transport_cost": requirement.get("transport_cost", 0),
                 "status": requirement["status"]
             })
 
@@ -514,6 +526,18 @@ def update_buyer_requirement(
 @app.post("/orders")
 def create_order(order: OrderRequest):
 
+    requirement_response = (
+        supabase.table("buyer_requirements").select("id, buyer_id, status")
+        .eq("id", order.requirement_id).execute()
+    )
+    if (not requirement_response.data or
+            requirement_response.data[0]["buyer_id"] != order.buyer_id or
+            requirement_response.data[0]["status"] != "active"):
+        return {
+            "success": False,
+            "message": "The selected buyer requirement is no longer active"
+        }
+
     total_amount = order.quantity_kg * order.price_per_kg
 
     response = (
@@ -540,44 +564,8 @@ def create_order(order: OrderRequest):
 @app.patch("/orders/{order_id}/status")
 def update_order_status(
     order_id: str,
-    order_status: OrderStatusRequest
-):
-
-    if order_status.status not in ["accepted", "rejected"]:
-        return {
-            "success": False,
-            "message": "Status must be accepted or rejected"
-        }
-
-    response = (
-        supabase
-        .table("orders")
-        .update({
-            "status": order_status.status
-        })
-        .eq("id", order_id)
-        .execute()
-    )
-
-    if not response.data:
-        return {
-            "success": False,
-            "message": "Order not found"
-        }
-
-    return {
-        "success": True,
-        "message": f"Order {order_status.status}",
-        "order": response.data[0]
-    }
-class OrderStatusRequest(BaseModel):
-    status: str
-
-
-@app.patch("/orders/{order_id}/status")
-def update_order_status(
-    order_id: str,
-    order_status: OrderStatusRequest
+    order_status: OrderStatusRequest,
+    buyer_id: str
 ):
 
     status = order_status.status.strip().lower()
@@ -587,6 +575,23 @@ def update_order_status(
             "success": False,
             "message": "Status must be accepted or rejected"
         }
+
+    existing = (
+        supabase
+        .table("orders")
+        .select("id, buyer_id, status")
+        .eq("id", order_id)
+        .execute()
+    )
+
+    if not existing.data:
+        return {"success": False, "message": "Order not found"}
+
+    if existing.data[0]["buyer_id"] != buyer_id:
+        return {"success": False, "message": "This order belongs to another buyer"}
+
+    if existing.data[0]["status"] != "pending":
+        return {"success": False, "message": "Only pending orders can be updated"}
 
     response = (
         supabase
@@ -609,6 +614,46 @@ def update_order_status(
         "message": f"Order {status}",
         "order": response.data[0]
     }
+
+
+@app.get("/buyers/{buyer_id}/matching-produce")
+def get_matching_produce_for_buyer(buyer_id: str):
+    """Return only real, active farmer produce that matches this buyer's
+    verified requirements.  No client-side hardcoded offer data is used."""
+    buyer_response = (
+        supabase.table("buyers").select("id, verification_status")
+        .eq("id", buyer_id).execute()
+    )
+    if not buyer_response.data or buyer_response.data[0]["verification_status"] != "verified":
+        return []
+
+    requirements = (
+        supabase.table("buyer_requirements").select("*")
+        .eq("buyer_id", buyer_id).eq("status", "active").execute().data
+    )
+    if not requirements:
+        return []
+
+    produce_rows = supabase.table("produce").select("*").execute().data
+    farmer_rows = supabase.table("farmers").select("id, name, location").execute().data
+    farmers = {farmer["id"]: farmer for farmer in farmer_rows}
+    matches = []
+    for produce in produce_rows:
+        for requirement in requirements:
+            if produce.get("crop", "").lower() != requirement.get("crop", "").lower():
+                continue
+            if _quality_rank(str(produce.get("quality", ""))) < _quality_rank(str(requirement.get("quality_required", "C"))):
+                continue
+            farmer = farmers.get(produce.get("farmer_id"), {})
+            matches.append({
+                **produce,
+                "farmer_name": farmer.get("name", "Farmer"),
+                "farmer_location": farmer.get("location", produce.get("location", "")),
+                "requirement_id": requirement["id"],
+                "offered_price_per_kg": requirement.get("price_per_kg", 0),
+            })
+            break
+    return matches
 @app.get("/orders/farmer/{farmer_id}")
 def get_farmer_orders(farmer_id: str):
 

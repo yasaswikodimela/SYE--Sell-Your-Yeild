@@ -52,6 +52,7 @@ class AppState extends ChangeNotifier {
 
   List<Produce> produceList = [];
   List<Produce> buyerMatchingProduce = [];
+  List<Map<String, dynamic>> buyerOffers = [];
   List<Map<String, dynamic>> buyerRequirements = [];
 
   // -----------------------------------------------------------------------
@@ -94,10 +95,7 @@ class AppState extends ChangeNotifier {
   // -----------------------------------------------------------------------
   Future<void> loadFarmerData() async {
     if (farmerId == null) return;
-    await Future.wait([
-      loadFarmerProduce(),
-      loadFarmerOrders(),
-    ]);
+    await Future.wait([loadFarmerProduce(), loadFarmerOrders()]);
     // Load market prices for the active crop, then recommendation
     if (activeProduce.crop.isNotEmpty) {
       await loadMarketPrices(activeProduce.crop);
@@ -139,8 +137,11 @@ class AppState extends ChangeNotifier {
     try {
       final data = await ApiService.getMarketPrices(crop);
       marketPrices = data
-          .map((d) =>
-              MarketPrice.fromBackendJson(Map<String, dynamic>.from(d as Map)))
+          .map(
+            (d) => MarketPrice.fromBackendJson(
+              Map<String, dynamic>.from(d as Map),
+            ),
+          )
           .toList();
     } catch (e) {
       debugPrint('loadMarketPrices error: $e');
@@ -199,21 +200,57 @@ class AppState extends ChangeNotifier {
         for (final buyer in buyersData)
           buyer['id'].toString(): buyer['business_name']?.toString() ?? '',
       };
-      orders = data
-          .map((d) {
-            final json = Map<String, dynamic>.from(d as Map);
-            return Order.fromBackendJson(
-              json,
-              buyerName: buyerNames[json['buyer_id']?.toString()] ?? '',
-            );
-          })
-          .toList();
+      orders = data.map((d) {
+        final json = Map<String, dynamic>.from(d as Map);
+        return Order.fromBackendJson(
+          json,
+          buyerName: buyerNames[json['buyer_id']?.toString()] ?? '',
+        );
+      }).toList();
     } catch (e) {
       debugPrint('loadFarmerOrders error: $e');
     } finally {
       isLoadingOrders = false;
       notifyListeners();
     }
+  }
+
+  /// Loads offers assigned to the currently authenticated buyer.
+  /// The order row does not contain farmer profile data, so the UI labels these
+  /// as farmer offers while still showing the authoritative order details.
+  Future<void> loadBuyerOrders() async {
+    if (buyerId == null) return;
+    isLoadingOrders = true;
+    notifyListeners();
+
+    try {
+      final data = await ApiService.getBuyerOrders(buyerId!);
+      orders = data
+          .map(
+            (d) => Order.fromBackendJson(
+              Map<String, dynamic>.from(d as Map),
+              buyerName: 'Farmer offer',
+            ),
+          )
+          .toList();
+    } catch (e) {
+      debugPrint('loadBuyerOrders error: $e');
+    } finally {
+      isLoadingOrders = false;
+      notifyListeners();
+    }
+  }
+
+  /// Updates an offer using PATCH /orders/{order_id}/status, then reloads the
+  /// buyer order list so both buyer actions and farmer notifications reflect
+  /// the persisted Supabase status.
+  Future<String> updateBuyerOrderStatus(String orderId, String status) async {
+    if (buyerId == null) {
+      throw Exception('No buyer is currently signed in');
+    }
+    final result = await ApiService.updateOrderStatus(orderId, status, buyerId!);
+    await loadBuyerOrders();
+    return result['message']?.toString() ?? 'Order $status';
   }
 
   // -----------------------------------------------------------------------
@@ -343,6 +380,7 @@ class AppState extends ChangeNotifier {
     );
     produceList = [];
     buyerMatchingProduce = [];
+    buyerOffers = [];
     buyerRequirements = [];
     marketPrices = [];
     buyers = [];
@@ -355,27 +393,54 @@ class AppState extends ChangeNotifier {
     if (buyerId == null) return;
 
     try {
-      final requirements = await ApiService.getBuyerRequirements();
+      final requirements = await ApiService.getBuyerRequirements(buyerId!);
       buyerRequirements = requirements
           .map((item) => Map<String, dynamic>.from(item as Map))
-          .where((item) => item['buyer_id']?.toString() == buyerId)
           .toList();
 
-      final produce = await ApiService.getAllProduce();
-      final crops = buyerRequirements
-          .map((item) => item['crop']?.toString().toLowerCase())
-          .whereType<String>()
-          .toSet();
-      buyerMatchingProduce = produce
+      final offers = await ApiService.getBuyerMatchingProduce(buyerId!);
+      buyerOffers = offers
           .map((item) => Map<String, dynamic>.from(item as Map))
-          .where((item) => crops.contains(item['crop']?.toString().toLowerCase()))
-          .map(Produce.fromJson)
           .toList();
+      await loadBuyerOrders();
     } catch (e) {
       debugPrint('loadBuyerData error: $e');
     } finally {
       notifyListeners();
     }
+  }
+
+  Future<String> saveBuyerRequirement({
+    required String crop,
+    required double quantityKg,
+    required double pricePerKg,
+    required String qualityRequired,
+  }) async {
+    if (buyerId == null) throw Exception('No buyer is currently signed in');
+    final payload = {
+      'buyer_id': buyerId!,
+      'crop': crop,
+      'quantity_kg': quantityKg,
+      'price_per_kg': pricePerKg,
+      'quality_required': qualityRequired,
+      'required_by': DateTime.now().add(const Duration(days: 7)).toIso8601String(),
+      'transport_cost': 0,
+    };
+    final existing = buyerRequirements.where(
+      (requirement) =>
+          requirement['crop']?.toString().toLowerCase() == crop.toLowerCase(),
+    );
+    final result = existing.isEmpty
+        ? await ApiService.addBuyerRequirement(payload)
+        : await ApiService.updateBuyerRequirement(
+            existing.first['requirement_id'].toString(),
+            Map<String, dynamic>.from(payload)..remove('buyer_id'),
+          );
+    if (result['success'] != true) {
+      throw Exception(result['message']?.toString() ?? 'Could not save demand');
+    }
+    await loadBuyerData();
+    return result['message']?.toString() ?? 'Buyer requirement saved';
   }
 
   // -----------------------------------------------------------------------
@@ -427,10 +492,8 @@ class AppState extends ChangeNotifier {
         (raw['market_price_per_kg'] as num?)?.toDouble() ?? 0.0;
     final remainingKg =
         (raw['remaining_quantity_kg'] as num?)?.toDouble() ?? 0.0;
-    final reasons = (raw['reasons'] as List?)
-            ?.map((r) => r.toString())
-            .toList() ??
-        [];
+    final reasons =
+        (raw['reasons'] as List?)?.map((r) => r.toString()).toList() ?? [];
 
     final rawAllocations = (raw['allocations'] as List?) ?? [];
 
@@ -467,8 +530,7 @@ class AppState extends ChangeNotifier {
       );
 
       // Spoilage rate back-calculated for display
-      final spoilagePct =
-          revenue > 0 ? (spoilageLoss / revenue) * 100 : 0.0;
+      final spoilagePct = revenue > 0 ? (spoilageLoss / revenue) * 100 : 0.0;
 
       return SplitAllocation(
         buyer: buyer,
@@ -485,12 +547,12 @@ class AppState extends ChangeNotifier {
     }).toList();
 
     // Summary totals
-    final totalRevenue =
-        allocations.fold(0.0, (s, a) => s + a.grossRevenue);
-    final totalTransport =
-        allocations.fold(0.0, (s, a) => s + a.transportCost);
-    final totalSpoilage =
-        allocations.fold(0.0, (s, a) => s + a.spoilageLossAmount);
+    final totalRevenue = allocations.fold(0.0, (s, a) => s + a.grossRevenue);
+    final totalTransport = allocations.fold(0.0, (s, a) => s + a.transportCost);
+    final totalSpoilage = allocations.fold(
+      0.0,
+      (s, a) => s + a.spoilageLossAmount,
+    );
 
     // Build strategy summary string
     String strategySummary;
@@ -513,18 +575,12 @@ class AppState extends ChangeNotifier {
 
     // Build decision factors from reasons list
     final List<DecisionFactor> decisionFactors = reasons.map((r) {
-      return DecisionFactor(
-        title: r,
-        impact: 'Optimal',
-        description: '',
-      );
+      return DecisionFactor(title: r, impact: 'Optimal', description: '');
     }).toList();
 
     // naive comparison: market price vs best buyer price for context
     final bestBuyerPrice = allocations.isNotEmpty
-        ? allocations
-            .map((a) => a.pricePerKg)
-            .reduce((a, b) => a > b ? a : b)
+        ? allocations.map((a) => a.pricePerKg).reduce((a, b) => a > b ? a : b)
         : 0.0;
     final naiveNet = activeProduce.quantityKg * marketPricePerKg;
     final netGain = expectedNet - naiveNet;

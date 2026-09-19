@@ -78,6 +78,8 @@ def calculate_recommendation(produce, buyers, market_prices):
 
         buyer_options.append({
             "buyer": buyer["name"],
+            "buyer_id": buyer.get("id", ""),
+            "requirement_id": buyer.get("requirement_id", ""),
             "price_per_kg": buyer["price_per_kg"],
             "capacity_kg": buyer["capacity_kg"],
             "transport_cost": buyer.get("transport_cost", 0),
@@ -143,6 +145,8 @@ def calculate_recommendation(produce, buyers, market_prices):
 
         allocations.append({
             "buyer": buyer["buyer"],
+            "buyer_id": buyer["buyer_id"],
+            "requirement_id": buyer["requirement_id"],
             "quantity_kg": allocated_quantity,
             "price_per_kg": buyer["price_per_kg"],
             "revenue": round(revenue, 2),
