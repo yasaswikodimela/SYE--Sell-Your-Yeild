@@ -203,16 +203,23 @@ def get_produce():
     )
 
     return response.data
+from postgrest.exceptions import APIError
+from fastapi import HTTPException
+
 @app.post("/farmers/register")
 def register_farmer(farmer: FarmerRegisterRequest):
-    response = (
-        supabase
-        .table("farmers")
-        .insert(farmer.model_dump())
-        .execute()
-    )
-
-    return response.data
+    try:
+        response = (
+            supabase
+            .table("farmers")
+            .insert(farmer.model_dump())
+            .execute()
+        )
+        return response.data
+    except APIError as e:
+        if e.code == '23505' or "duplicate key" in e.message.lower():
+            raise HTTPException(status_code=400, detail="Phone number already registered")
+        raise HTTPException(status_code=500, detail=str(e))
 @app.post("/farmers/login")
 def login_farmer(farmer: FarmerLoginRequest):
     response = (

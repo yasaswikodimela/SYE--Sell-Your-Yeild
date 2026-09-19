@@ -7,8 +7,8 @@ import '../widgets/market_price_card.dart';
 import '../widgets/order_card.dart';
 import '../widgets/recommendation_card.dart';
 import 'add_produce_screen.dart';
-import 'buyer_dashboard_screen.dart';
 import 'farmer_profile_screen.dart';
+import 'login_screen.dart';
 import 'market_prices_screen.dart';
 import 'order_confirmation_screen.dart';
 import 'orders_screen.dart';
@@ -140,39 +140,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                   Row(
                     children: [
-                      TextButton.icon(
+                      IconButton(
+                        tooltip: 'Logout',
                         onPressed: () {
-                          _appState.isFarmerMode = false;
-                          Navigator.of(context).push(
+                          _appState.reset();
+                          Navigator.of(context).pushAndRemoveUntil(
                             MaterialPageRoute(
-                              builder: (_) => const BuyerDashboardScreen(),
+                              builder: (_) => const LoginScreen(),
                             ),
+                            (route) => false,
                           );
                         },
-                        style: TextButton.styleFrom(
-                          backgroundColor: const Color(0xFFEFF6FF),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 6),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        icon: const Icon(Icons.storefront_outlined,
-                            size: 16, color: AppTheme.blueInfo),
-                        label: const Text(
-                          'Buyer Portal',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.blueInfo,
-                          ),
-                        ),
+                        icon: const Icon(Icons.logout_rounded),
                       ),
                     ],
                   ),
                 ],
               ),
             ),
+
+            ..._buildFarmerNotifications(recentOrders),
 
             // Quick Stats Card (Location & Farm Size)
             Container(
@@ -466,6 +453,53 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
       ),
     );
+  }
+
+  List<Widget> _buildFarmerNotifications(List recentOrders) {
+    final updates = recentOrders
+        .where((order) =>
+            order.status == 'Confirmed' || order.status == 'Rejected')
+        .toList();
+    if (updates.isEmpty) return [];
+
+    final order = updates.first;
+    final accepted = order.status == 'Confirmed';
+    final buyer = order.buyerName.isEmpty ? 'the buyer' : order.buyerName;
+    return [
+      Container(
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: accepted ? AppTheme.paleGreen : Colors.red.shade50,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: accepted ? const Color(0xFFC8E6C9) : Colors.red.shade200,
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              accepted ? Icons.check_circle_outline : Icons.cancel_outlined,
+              color: accepted ? AppTheme.primaryGreen : Colors.red.shade700,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                accepted
+                    ? 'Your offer was accepted\nYour ${order.crop} offer for ${order.quantityKg.toInt()} kg has been accepted by $buyer.'
+                    : 'Your offer was rejected\nYour ${order.crop} offer for ${order.quantityKg.toInt()} kg was rejected by $buyer.',
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.35,
+                  color: accepted ? AppTheme.darkGreen : Colors.red.shade700,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ];
   }
 
   Widget _buildHarvestsTab(BuildContext context) {

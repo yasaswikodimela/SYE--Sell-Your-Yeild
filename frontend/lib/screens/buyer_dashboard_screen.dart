@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/app_state.dart';
 import '../theme.dart';
-import 'dashboard_screen.dart';
+import 'login_screen.dart';
 
 class BuyerDashboardScreen extends StatefulWidget {
   const BuyerDashboardScreen({super.key});
@@ -18,25 +18,37 @@ class _BuyerDashboardScreenState extends State<BuyerDashboardScreen> {
   String _selectedGrade = 'Grade A';
 
   @override
+  void initState() {
+    super.initState();
+    _appState.addListener(_refresh);
+  }
+
+  @override
+  void dispose() {
+    _appState.removeListener(_refresh);
+    super.dispose();
+  }
+
+  void _refresh() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('SYE Buyer Procurement Desk'),
         actions: [
-          TextButton.icon(
+          IconButton(
+            tooltip: 'Logout',
             onPressed: () {
-              _appState.isFarmerMode = true;
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(builder: (_) => const DashboardScreen()),
+              _appState.reset();
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const LoginScreen()),
+                (route) => false,
               );
             },
-            icon: const Icon(Icons.swap_horiz_rounded,
-                color: AppTheme.primaryGreen),
-            label: const Text(
-              'Farmer Mode',
-              style: TextStyle(
-                  fontWeight: FontWeight.bold, color: AppTheme.primaryGreen),
-            ),
+            icon: const Icon(Icons.logout_rounded),
           ),
         ],
       ),
@@ -60,13 +72,13 @@ class _BuyerDashboardScreenState extends State<BuyerDashboardScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Row(
+                      Row(
                         children: [
                           Icon(Icons.storefront_rounded,
                               color: Color(0xFF38BDF8), size: 24),
                           SizedBox(width: 8),
                           Text(
-                            'FreshMart Superstores',
+                            _appState.buyerName,
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 16,
@@ -102,6 +114,35 @@ class _BuyerDashboardScreenState extends State<BuyerDashboardScreen> {
               ),
             ),
             const SizedBox(height: 16),
+
+            if (_appState.buyerMatchingProduce.isNotEmpty)
+              Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppTheme.paleGreen,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFC8E6C9)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.notifications_active_outlined,
+                        color: AppTheme.primaryGreen),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'New Farmer Offers Available\n${_appState.buyerMatchingProduce.length} farmer harvest${_appState.buyerMatchingProduce.length == 1 ? '' : 's'} match your requirements.',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          height: 1.35,
+                          color: AppTheme.darkGreen,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
 
             // Purchasing Capacity Management Card
             Card(
@@ -286,7 +327,7 @@ class _BuyerDashboardScreenState extends State<BuyerDashboardScreen> {
               ),
             ),
             const SizedBox(height: 8),
-            ..._appState.produceList.map((prod) {
+            ..._appState.buyerMatchingProduce.map((prod) {
               return Card(
                 margin: const EdgeInsets.only(bottom: 10),
                 shape: RoundedRectangleBorder(

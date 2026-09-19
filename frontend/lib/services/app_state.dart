@@ -22,6 +22,7 @@ class AppState extends ChangeNotifier {
   // -----------------------------------------------------------------------
   String? farmerId;
   String? buyerId;
+  String buyerName = '';
 
   FarmerProfile farmerProfile = const FarmerProfile(
     name: '',
@@ -50,6 +51,8 @@ class AppState extends ChangeNotifier {
   );
 
   List<Produce> produceList = [];
+  List<Produce> buyerMatchingProduce = [];
+  List<Map<String, dynamic>> buyerRequirements = [];
 
   // -----------------------------------------------------------------------
   // Market Prices
@@ -191,9 +194,19 @@ class AppState extends ChangeNotifier {
 
     try {
       final data = await ApiService.getFarmerOrders(farmerId!);
+      final buyersData = await ApiService.getBuyers();
+      final buyerNames = <String, String>{
+        for (final buyer in buyersData)
+          buyer['id'].toString(): buyer['business_name']?.toString() ?? '',
+      };
       orders = data
-          .map((d) =>
-              Order.fromBackendJson(Map<String, dynamic>.from(d as Map)))
+          .map((d) {
+            final json = Map<String, dynamic>.from(d as Map);
+            return Order.fromBackendJson(
+              json,
+              buyerName: buyerNames[json['buyer_id']?.toString()] ?? '',
+            );
+          })
           .toList();
     } catch (e) {
       debugPrint('loadFarmerOrders error: $e');
@@ -305,6 +318,8 @@ class AppState extends ChangeNotifier {
   void reset() {
     farmerId = null;
     buyerId = null;
+    buyerName = '';
+    isFarmerMode = true;
     farmerProfile = const FarmerProfile(
       name: '',
       phone: '',
@@ -327,11 +342,40 @@ class AppState extends ChangeNotifier {
       location: '',
     );
     produceList = [];
+    buyerMatchingProduce = [];
+    buyerRequirements = [];
     marketPrices = [];
     buyers = [];
     orders = [];
     _currentRecommendation = null;
     notifyListeners();
+  }
+
+  Future<void> loadBuyerData() async {
+    if (buyerId == null) return;
+
+    try {
+      final requirements = await ApiService.getBuyerRequirements();
+      buyerRequirements = requirements
+          .map((item) => Map<String, dynamic>.from(item as Map))
+          .where((item) => item['buyer_id']?.toString() == buyerId)
+          .toList();
+
+      final produce = await ApiService.getAllProduce();
+      final crops = buyerRequirements
+          .map((item) => item['crop']?.toString().toLowerCase())
+          .whereType<String>()
+          .toSet();
+      buyerMatchingProduce = produce
+          .map((item) => Map<String, dynamic>.from(item as Map))
+          .where((item) => crops.contains(item['crop']?.toString().toLowerCase()))
+          .map(Produce.fromJson)
+          .toList();
+    } catch (e) {
+      debugPrint('loadBuyerData error: $e');
+    } finally {
+      notifyListeners();
+    }
   }
 
   // -----------------------------------------------------------------------

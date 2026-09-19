@@ -40,13 +40,17 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (result['success'] == true) {
       if (!_isBuyer) {
+        AppState().buyerId = null;
         AppState().farmerId = result['farmer']['id']?.toString();
         AppState().farmerProfile =
             FarmerProfile.fromJson(result['farmer'] as Map<String, dynamic>);
         // Load produce, market prices, and recommendation in sequence
         await AppState().loadFarmerData();
       } else {
+        AppState().farmerId = null;
         AppState().buyerId = result['buyer']['id']?.toString();
+        AppState().buyerName = result['buyer']['business_name']?.toString() ?? '';
+        await AppState().loadBuyerData();
       }
       AppState().isFarmerMode = !_isBuyer;
 

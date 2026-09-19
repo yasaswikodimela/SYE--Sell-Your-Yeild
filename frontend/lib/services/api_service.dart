@@ -49,7 +49,21 @@ class ApiService {
     if (response.statusCode != 200) {
       throw Exception('Server error ${response.statusCode}');
     }
-    return jsonDecode(response.body) as Map<String, dynamic>;
+    final dynamic decoded = jsonDecode(response.body);
+    if (decoded is List) {
+      if (decoded.isEmpty) {
+        return <String, dynamic>{};
+      }
+      final firstRow = decoded.first;
+      if (firstRow is Map) {
+        return Map<String, dynamic>.from(firstRow);
+      }
+      throw Exception('Unexpected farmer registration response format');
+    }
+    if (decoded is Map) {
+      return Map<String, dynamic>.from(decoded);
+    }
+    throw Exception('Unexpected farmer registration response format');
   }
 
   // -------------------------
@@ -76,6 +90,14 @@ class ApiService {
     final response = await http.get(
       Uri.parse('$baseUrl/produce/farmer/$farmerId'),
     );
+    if (response.statusCode != 200) {
+      throw Exception('Server error ${response.statusCode}');
+    }
+    return jsonDecode(response.body) as List<dynamic>;
+  }
+
+  static Future<List<dynamic>> getAllProduce() async {
+    final response = await http.get(Uri.parse('$baseUrl/produce'));
     if (response.statusCode != 200) {
       throw Exception('Server error ${response.statusCode}');
     }
